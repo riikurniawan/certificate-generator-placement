@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Stage, Layer, Text, Rect } from 'react-konva';
+import React, { useState, useRef, useEffect } from 'react';
+import { Stage, Layer, Text, Rect, Image as KonvaImage } from 'react-konva';
+import { Button } from 'primereact/button';
+import { InputText } from 'primereact/inputtext';
+import { Checkbox } from 'primereact/checkbox';
 
 interface TextElement {
   id: string;
@@ -13,25 +16,29 @@ interface TextElement {
   draggable: boolean;
 }
 
-const CertificateBorder = () => {
+const CertificateBorder = ({ width, height }: { width: number; height: number }) => {
+  const margin = 10;
+  const innerMargin = 25;
+  const ornamentSize = 100;
+  
   return (
     <>
       {/* Border Luar Pink */}
       <Rect
-        x={10}
-        y={10}
-        width={780}
-        height={540}
+        x={margin}
+        y={margin}
+        width={width - margin * 2}
+        height={height - margin * 2}
         stroke="#E91E63"
         strokeWidth={8}
         cornerRadius={5}
       />
       {/* Border Dalam Pink */}
       <Rect
-        x={25}
-        y={25}
-        width={750}
-        height={510}
+        x={innerMargin}
+        y={innerMargin}
+        width={width - innerMargin * 2}
+        height={height - innerMargin * 2}
         stroke="#E91E63"
         strokeWidth={3}
         cornerRadius={3}
@@ -40,35 +47,35 @@ const CertificateBorder = () => {
       <Rect
         x={35}
         y={35}
-        width={100}
-        height={100}
+        width={ornamentSize}
+        height={ornamentSize}
         fill="#FCE4EC"
         cornerRadius={50}
       />
       {/* Ornamen Pink - Top Right */}
       <Rect
-        x={665}
+        x={width - 35 - ornamentSize}
         y={35}
-        width={100}
-        height={100}
+        width={ornamentSize}
+        height={ornamentSize}
         fill="#FCE4EC"
         cornerRadius={50}
       />
       {/* Ornamen Pink - Bottom Left */}
       <Rect
         x={35}
-        y={405}
-        width={100}
-        height={100}
+        y={height - 35 - ornamentSize}
+        width={ornamentSize}
+        height={ornamentSize}
         fill="#FCE4EC"
         cornerRadius={50}
       />
       {/* Ornamen Pink - Bottom Right */}
       <Rect
-        x={665}
-        y={405}
-        width={100}
-        height={100}
+        x={width - 35 - ornamentSize}
+        y={height - 35 - ornamentSize}
+        width={ornamentSize}
+        height={ornamentSize}
         fill="#FCE4EC"
         cornerRadius={50}
       />
@@ -78,11 +85,13 @@ const CertificateBorder = () => {
 
 const CertificateEditor: React.FC = () => {
   const stageRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [textElements, setTextElements] = useState<TextElement[]>([
     {
       id: 'nama',
       text: 'Hasan Syahbana',
-      x: 300,
+      x: 150,
       y: 250,
       fontSize: 32,
       fontFamily: 'Arial',
@@ -91,7 +100,7 @@ const CertificateEditor: React.FC = () => {
     {
       id: 'kursus',
       text: 'Kursus Pelatihan Web Development',
-      x: 220,
+      x: 150,
       y: 300,
       fontSize: 24,
       fontFamily: 'Arial',
@@ -100,7 +109,7 @@ const CertificateEditor: React.FC = () => {
     {
       id: 'tanggal',
       text: 'Lombok, 13 Maret 2024',
-      x: 300,
+      x: 250,
       y: 450,
       fontSize: 18,
       fontFamily: 'Arial',
@@ -114,6 +123,63 @@ const CertificateEditor: React.FC = () => {
     kursus: 'Kursus Pelatihan Web Development',
     tanggal: 'Lombok, 13 Maret 2024',
   });
+
+  // Background image states
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  const [backgroundUrl, setBackgroundUrl] = useState<string>('');
+  const [showBorder, setShowBorder] = useState<boolean>(true);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 560 });
+  const [zoom, setZoom] = useState<number>(1);
+
+  // Auto-center text elements when canvas size changes
+  useEffect(() => {
+    setTextElements((prev) => [
+      { ...prev[0], x: canvasSize.width / 2 - 250 },
+      { ...prev[1], x: canvasSize.width / 2 - 250 },
+      { ...prev[2], x: canvasSize.width / 2 - 150, y: canvasSize.height - 110 },
+    ]);
+  }, [canvasSize]);
+
+  // Load background image when URL changes
+  useEffect(() => {
+    if (backgroundUrl) {
+      const img = new window.Image();
+      img.src = backgroundUrl;
+      img.onload = () => {
+        setBackgroundImage(img);
+        
+        // Use original image dimensions without any scaling
+        const width = img.width;
+        const height = img.height;
+        
+        // Set canvas size to match image dimensions exactly
+        setCanvasSize({ width, height });
+      };
+    } else {
+      setBackgroundImage(null);
+      // Reset to default size when no background
+      setCanvasSize({ width: 800, height: 560 });
+    }
+  }, [backgroundUrl]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setBackgroundUrl(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveBackground = () => {
+    setBackgroundUrl('');
+    setBackgroundImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleDragEnd = (id: string, e: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const newElements = textElements.map((el) => {
@@ -142,7 +208,14 @@ const CertificateEditor: React.FC = () => {
 
   const exportImage = () => {
     if (stageRef.current) {
-      const uri = stageRef.current.toDataURL();
+      // If there's a background image, use its original dimensions for export
+      let pixelRatio = 1;
+      if (backgroundImage && backgroundImage.width > 0) {
+        // Calculate pixel ratio to export at original background image size
+        pixelRatio = backgroundImage.width / canvasSize.width;
+      }
+      
+      const uri = stageRef.current.toDataURL({ pixelRatio });
       const link = document.createElement('a');
       link.download = 'sertifikat.png';
       link.href = uri;
@@ -155,24 +228,67 @@ const CertificateEditor: React.FC = () => {
   return (
     <div className="flex flex-col lg:flex-row gap-8 bg-white p-8 rounded-lg shadow-xl">
       {/* Canvas Area */}
-      <div className="flex-1">
-        <div className="bg-white border-4 border-gray-200 rounded-lg overflow-hidden shadow-lg">
-          <Stage
-            width={800}
-            height={560}
-            ref={stageRef}
-            className="cursor-move"
-          >
+      <div className="flex-1 overflow-hidden">
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <Button
+            icon="pi pi-search-minus"
+            onClick={() => setZoom(Math.max(0.25, zoom - 0.25))}
+            severity="secondary"
+            outlined
+            tooltip="Zoom Out"
+            tooltipOptions={{ position: 'top' }}
+          />
+          <span className="px-4 py-2 bg-white rounded border border-gray-200 min-w-[80px] text-center font-semibold text-gray-700">
+            {Math.round(zoom * 100)}%
+          </span>
+          <Button
+            icon="pi pi-search-plus"
+            onClick={() => setZoom(Math.min(3, zoom + 0.25))}
+            severity="secondary"
+            outlined
+            tooltip="Zoom In"
+            tooltipOptions={{ position: 'top' }}
+          />
+          <Button
+            label="Reset"
+            onClick={() => setZoom(1)}
+            severity="info"
+            className="ml-2"
+            tooltip="Reset Zoom"
+            tooltipOptions={{ position: 'top' }}
+          />
+        </div>
+
+        <div className="bg-white border-4 border-gray-200 rounded-lg overflow-auto shadow-lg max-h-[700px]">
+          <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+            <Stage
+              width={canvasSize.width}
+              height={canvasSize.height}
+              ref={stageRef}
+              className="cursor-move"
+            >
             <Layer>
-              {/* Background */}
-              <Rect x={0} y={0} width={800} height={560} fill="#FFFFFF" />
+              {/* Background - White or Image */}
+              <Rect x={0} y={0} width={canvasSize.width} height={canvasSize.height} fill="#FFFFFF" />
               
-              {/* Border Sertifikat */}
-              <CertificateBorder />
+              {/* Background Image (if uploaded) */}
+              {backgroundImage && (
+                <KonvaImage
+                  x={0}
+                  y={0}
+                  width={canvasSize.width}
+                  height={canvasSize.height}
+                  image={backgroundImage}
+                />
+              )}
+              
+              {/* Border Sertifikat (optional) */}
+              {showBorder && <CertificateBorder width={canvasSize.width} height={canvasSize.height} />}
 
               {/* Header Text */}
               <Text
-                x={200}
+                x={canvasSize.width / 2 - 200}
                 y={120}
                 text="SERTIFIKAT"
                 fontSize={42}
@@ -184,7 +300,7 @@ const CertificateEditor: React.FC = () => {
               />
 
               <Text
-                x={150}
+                x={canvasSize.width / 2 - 250}
                 y={180}
                 text="Diberikan Kepada:"
                 fontSize={20}
@@ -202,6 +318,8 @@ const CertificateEditor: React.FC = () => {
                   text={element.text}
                   x={element.x}
                   y={element.y}
+                  width={500}
+                  align="center"
                   fontSize={element.fontSize}
                   fontFamily={element.fontFamily}
                   fontStyle={element.id === 'nama' ? 'bold' : 'normal'}
@@ -218,8 +336,8 @@ const CertificateEditor: React.FC = () => {
 
               {/* Signature Label */}
               <Text
-                x={550}
-                y={500}
+                x={canvasSize.width - 250}
+                y={canvasSize.height - 60}
                 text="Direktur Kursus,"
                 fontSize={14}
                 fontFamily="Arial"
@@ -227,6 +345,7 @@ const CertificateEditor: React.FC = () => {
               />
             </Layer>
           </Stage>
+          </div>
         </div>
       </div>
 
@@ -246,11 +365,10 @@ const CertificateEditor: React.FC = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Nama Penerima
               </label>
-              <input
-                type="text"
+              <InputText
                 value={inputValues.nama}
                 onChange={(e) => handleInputChange('nama', e.target.value)}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500 transition-colors"
+                className="w-full"
                 placeholder="Masukkan nama"
               />
             </div>
@@ -260,11 +378,10 @@ const CertificateEditor: React.FC = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Kursus Pelatihan
               </label>
-              <input
-                type="text"
+              <InputText
                 value={inputValues.kursus}
                 onChange={(e) => handleInputChange('kursus', e.target.value)}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500 transition-colors"
+                className="w-full"
                 placeholder="Masukkan nama kursus"
               />
             </div>
@@ -274,23 +391,76 @@ const CertificateEditor: React.FC = () => {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Tanggal Terbit
               </label>
-              <input
-                type="text"
+              <InputText
                 value={inputValues.tanggal}
                 onChange={(e) => handleInputChange('tanggal', e.target.value)}
-                className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500 transition-colors"
+                className="w-full"
                 placeholder="Masukkan tanggal"
               />
             </div>
           </div>
 
+          {/* Background Upload Section */}
+          <div className="mt-6 pt-6 border-t-2 border-pink-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Background Template
+            </label>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="background-upload"
+            />
+            
+            <div className="space-y-2">
+              <label
+                htmlFor="background-upload"
+                className="block"
+              >
+                <Button
+                  label="Upload Background"
+                  icon="pi pi-upload"
+                  severity="info"
+                  className="w-full"
+                  onClick={() => document.getElementById('background-upload')?.click()}
+                />
+              </label>
+              
+              {backgroundUrl && (
+                <Button
+                  label="Hapus Background"
+                  icon="pi pi-trash"
+                  severity="danger"
+                  className="w-full"
+                  onClick={handleRemoveBackground}
+                />
+              )}
+
+              {/* Toggle Border */}
+              <div className="flex items-center gap-2 my-3">
+                <Checkbox
+                  inputId="show-border"
+                  checked={showBorder}
+                  onChange={(e) => setShowBorder(e.checked || false)}
+                />
+                <label htmlFor="show-border" className="text-sm text-gray-700 cursor-pointer">
+                  Tampilkan Border & Ornamen
+                </label>
+              </div>
+            </div>
+          </div>
+
           {/* Export Button */}
-          <button
+          <Button
+            label="Download Sertifikat"
+            icon="pi pi-download"
+            severity="success"
+            className="w-full mt-6"
             onClick={exportImage}
-            className="w-full mt-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-          >
-            Download Sertifikat
-          </button>
+          />
 
           {/* Info */}
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">

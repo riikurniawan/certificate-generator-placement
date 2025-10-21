@@ -1,14 +1,19 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Stage, Layer, Text, Rect } from 'react-konva';
+import React, { useState, useRef, useEffect } from 'react';
+import { Stage, Layer, Text, Rect, Image as KonvaImage } from 'react-konva';
+import { Button } from 'primereact/button';
+import { InputText } from 'primereact/inputtext';
+import { Checkbox } from 'primereact/checkbox';
+import { Dialog } from 'primereact/dialog';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
 
 interface Participant {
   id: number;
   name: string;
   course: string;
   date: string;
-  status: 'pending' | 'generated';
 }
 
 const ParticipantList: React.FC = () => {
@@ -18,21 +23,18 @@ const ParticipantList: React.FC = () => {
       name: 'Hasan Syahbana',
       course: 'Kursus Pelatihan Web Development',
       date: 'Lombok, 13 Maret 2024',
-      status: 'pending',
     },
     {
       id: 2,
       name: 'Ahmad Hidayat',
       course: 'Kursus Pelatihan UI/UX Design',
       date: 'Lombok, 15 Maret 2024',
-      status: 'pending',
     },
     {
       id: 3,
       name: 'Siti Nurhaliza',
       course: 'Kursus Pelatihan Data Science',
       date: 'Lombok, 20 Maret 2024',
-      status: 'pending',
     },
   ]);
 
@@ -46,17 +48,70 @@ const ParticipantList: React.FC = () => {
 
   const [previewParticipant, setPreviewParticipant] = useState<Participant | null>(null);
   const stageRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Background image states
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  const [backgroundUrl, setBackgroundUrl] = useState<string>('');
+  const [showBorder, setShowBorder] = useState<boolean>(true);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 560 });
+  const [zoom, setZoom] = useState<number>(1);
+
+  // Load background image when URL changes
+  useEffect(() => {
+    if (backgroundUrl) {
+      const img = new window.Image();
+      img.src = backgroundUrl;
+      img.onload = () => {
+        setBackgroundImage(img);
+        
+        // Use original image dimensions without any scaling
+        const width = img.width;
+        const height = img.height;
+        
+        // Set canvas size to match image dimensions exactly
+        setCanvasSize({ width, height });
+      };
+    } else {
+      setBackgroundImage(null);
+      // Reset to default size when no background
+      setCanvasSize({ width: 800, height: 560 });
+    }
+  }, [backgroundUrl]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setBackgroundUrl(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveBackground = () => {
+    setBackgroundUrl('');
+    setBackgroundImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Certificate Border Component
-  const CertificateBorder = () => {
+  const CertificateBorder = ({ width, height }: { width: number; height: number }) => {
+    const margin = 10;
+    const innerMargin = 25;
+    const ornamentSize = 100;
+
     return (
       <>
-        <Rect x={10} y={10} width={780} height={540} stroke="#E91E63" strokeWidth={8} cornerRadius={5} />
-        <Rect x={25} y={25} width={750} height={510} stroke="#E91E63" strokeWidth={3} cornerRadius={3} />
-        <Rect x={35} y={35} width={100} height={100} fill="#FCE4EC" cornerRadius={50} />
-        <Rect x={665} y={35} width={100} height={100} fill="#FCE4EC" cornerRadius={50} />
-        <Rect x={35} y={405} width={100} height={100} fill="#FCE4EC" cornerRadius={50} />
-        <Rect x={665} y={405} width={100} height={100} fill="#FCE4EC" cornerRadius={50} />
+        <Rect x={margin} y={margin} width={width - margin * 2} height={height - margin * 2} stroke="#E91E63" strokeWidth={8} cornerRadius={5} />
+        <Rect x={innerMargin} y={innerMargin} width={width - innerMargin * 2} height={height - innerMargin * 2} stroke="#E91E63" strokeWidth={3} cornerRadius={3} />
+        <Rect x={35} y={35} width={ornamentSize} height={ornamentSize} fill="#FCE4EC" cornerRadius={50} />
+        <Rect x={width - 35 - ornamentSize} y={35} width={ornamentSize} height={ornamentSize} fill="#FCE4EC" cornerRadius={50} />
+        <Rect x={35} y={height - 35 - ornamentSize} width={ornamentSize} height={ornamentSize} fill="#FCE4EC" cornerRadius={50} />
+        <Rect x={width - 35 - ornamentSize} y={height - 35 - ornamentSize} width={ornamentSize} height={ornamentSize} fill="#FCE4EC" cornerRadius={50} />
       </>
     );
   };
@@ -101,7 +156,6 @@ const ParticipantList: React.FC = () => {
         name: formData.name,
         course: formData.course,
         date: formData.date,
-        status: 'pending',
       };
       setParticipants([...participants, newParticipant]);
     }
@@ -118,14 +172,21 @@ const ParticipantList: React.FC = () => {
     // Wait for render then download
     setTimeout(() => {
       if (stageRef.current) {
-        const uri = stageRef.current.toDataURL();
+        // If there's a background image, use its original dimensions for export
+        let pixelRatio = 1;
+        if (backgroundImage && backgroundImage.width > 0) {
+          // Calculate pixel ratio to export at original background image size
+          pixelRatio = backgroundImage.width / canvasSize.width;
+        }
+
+        const uri = stageRef.current.toDataURL({ pixelRatio });
         const link = document.createElement('a');
         link.download = `sertifikat-${participant.name.replace(/\s+/g, '-').toLowerCase()}.png`;
         link.href = uri;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         // Update status
         setParticipants(
           participants.map((p) =>
@@ -148,204 +209,293 @@ const ParticipantList: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Background Template Settings */}
+      <div className="bg-white p-6 rounded-lg shadow-lg">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i className="pi pi-cog" />
+          Pengaturan Template
+        </h3>
+        
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+            id="background-upload-participants"
+          />
+          
+          <label
+            htmlFor="background-upload-participants"
+            className="block"
+          >
+            <Button
+              label="Upload Background Template"
+              icon="pi pi-upload"
+              severity="info"
+              className="w-full"
+              onClick={() => document.getElementById('background-upload-participants')?.click()}
+            />
+          </label>
+          
+          {backgroundUrl && (
+            <Button
+              label="Hapus Background"
+              icon="pi pi-trash"
+              severity="danger"
+              className="w-full"
+              onClick={handleRemoveBackground}
+            />
+          )}
+
+          <div className="flex items-center gap-2 mt-3">
+            <Checkbox
+              inputId="show-border-participants"
+              checked={showBorder}
+              onChange={(e) => setShowBorder(e.checked || false)}
+            />
+            <label htmlFor="show-border-participants" className="text-sm text-gray-700 cursor-pointer">
+              Tampilkan Border & Ornamen
+            </label>
+          </div>
+
+          {backgroundUrl && (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold flex items-center gap-1">
+                <i className="pi pi-check-circle" />
+                Background Active
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Action Buttons */}
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <div className="flex flex-wrap gap-4">
-          <button
+          <Button
+            label="Tambah Peserta"
+            icon="pi pi-plus"
+            severity="success"
             onClick={handleAddNew}
-            className="bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-          >
-            + Tambah Peserta
-          </button>
-          <button
+          />
+          <Button
+            label={`Download Semua Sertifikat (${participants.length})`}
+            icon="pi pi-download"
+            severity="info"
             onClick={handleBulkDownload}
             disabled={participants.length === 0}
-            className="bg-gradient-to-r from-green-500 to-teal-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            📥 Download Semua Sertifikat ({participants.length})
-          </button>
+          />
         </div>
       </div>
 
       {/* Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">
-              {editingId ? 'Edit Peserta' : 'Tambah Peserta Baru'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nama Lengkap
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500"
-                  placeholder="Masukkan nama lengkap"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Kursus Pelatihan
-                </label>
-                <input
-                  type="text"
-                  value={formData.course}
-                  onChange={(e) => setFormData({ ...formData, course: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500"
-                  placeholder="Masukkan nama kursus"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tanggal Terbit
-                </label>
-                <input
-                  type="text"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-pink-200 rounded-lg focus:outline-none focus:border-pink-500"
-                  placeholder="Contoh: Lombok, 13 Maret 2024"
-                  required
-                />
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 rounded-lg hover:shadow-lg transition-all"
-                >
-                  {editingId ? 'Update' : 'Tambah'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-400 transition-all"
-                >
-                  Batal
-                </button>
-              </div>
-            </form>
+      <Dialog
+        header={editingId ? 'Edit Peserta' : 'Tambah Peserta Baru'}
+        visible={showForm}
+        style={{ width: '450px' }}
+        onHide={() => setShowForm(false)}
+        draggable={false}
+        resizable={false}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Nama Lengkap
+            </label>
+            <InputText
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full"
+              placeholder="Masukkan nama lengkap"
+              required
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Kursus Pelatihan
+            </label>
+            <InputText
+              value={formData.course}
+              onChange={(e) => setFormData({ ...formData, course: e.target.value })}
+              className="w-full"
+              placeholder="Masukkan nama kursus"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Tanggal Terbit
+            </label>
+            <InputText
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full"
+              placeholder="Contoh: Lombok, 13 Maret 2024"
+              required
+            />
+          </div>
+          <div className="flex gap-3 mt-6">
+            <Button
+              type="submit"
+              label={editingId ? 'Update' : 'Tambah'}
+              severity="success"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              label="Batal"
+              severity="secondary"
+              className="flex-1"
+              onClick={() => setShowForm(false)}
+            />
+          </div>
+        </form>
+      </Dialog>
 
       {/* Participants Table */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-pink-500 to-purple-600 text-white">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-bold">No</th>
-                <th className="px-6 py-4 text-left text-sm font-bold">Nama Peserta</th>
-                <th className="px-6 py-4 text-left text-sm font-bold">Kursus</th>
-                <th className="px-6 py-4 text-left text-sm font-bold">Tanggal</th>
-                <th className="px-6 py-4 text-left text-sm font-bold">Status</th>
-                <th className="px-6 py-4 text-center text-sm font-bold">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {participants.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    Belum ada peserta. Klik &quot;Tambah Peserta&quot; untuk menambah data.
-                  </td>
-                </tr>
-              ) : (
-                participants.map((participant, index) => (
-                  <tr
-                    key={participant.id}
-                    className="hover:bg-pink-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-700">{index + 1}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {participant.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {participant.course}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {participant.date}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          participant.status === 'generated'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {participant.status === 'generated' ? '✓ Generated' : '⏳ Pending'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handlePreview(participant)}
-                          className="bg-blue-500 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
-                          title="Preview"
-                        >
-                          👁️ Preview
-                        </button>
-                        <button
-                          onClick={() => handleDownload(participant)}
-                          className="bg-green-500 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-green-600 transition-colors"
-                          title="Download"
-                        >
-                          📥 Download
-                        </button>
-                        <button
-                          onClick={() => handleEdit(participant)}
-                          className="bg-yellow-500 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-yellow-600 transition-colors"
-                          title="Edit"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(participant.id)}
-                          className="bg-red-500 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-red-600 transition-colors"
-                          title="Delete"
-                        >
-                          🗑️ Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="card">
+        <DataTable
+          value={participants}
+          stripedRows
+          showGridlines
+          emptyMessage="Belum ada peserta. Klik 'Tambah Peserta' untuk menambah data."
+          paginator
+          rows={10}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+        >
+          <Column
+            header="No"
+            body={(data, options) => options.rowIndex + 1}
+            style={{ width: '5rem' }}
+          />
+          <Column
+            field="name"
+            header="Nama Peserta"
+            sortable
+            style={{ minWidth: '12rem' }}
+          />
+          <Column
+            field="course"
+            header="Kursus"
+            sortable
+            style={{ minWidth: '15rem' }}
+          />
+          <Column
+            field="date"
+            header="Tanggal"
+            sortable
+            style={{ minWidth: '10rem' }}
+          />
+          <Column
+            header="Aksi"
+            body={(participant: Participant) => (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  icon="pi pi-eye"
+                  severity="info"
+                  size="small"
+                  tooltip="Preview"
+                  tooltipOptions={{ position: 'top' }}
+                  onClick={() => handlePreview(participant)}
+                />
+                <Button
+                  icon="pi pi-download"
+                  severity="success"
+                  size="small"
+                  tooltip="Download"
+                  tooltipOptions={{ position: 'top' }}
+                  onClick={() => handleDownload(participant)}
+                />
+                <Button
+                  icon="pi pi-pencil"
+                  severity="warning"
+                  size="small"
+                  tooltip="Edit"
+                  tooltipOptions={{ position: 'top' }}
+                  onClick={() => handleEdit(participant)}
+                />
+                <Button
+                  icon="pi pi-trash"
+                  severity="danger"
+                  size="small"
+                  tooltip="Delete"
+                  tooltipOptions={{ position: 'top' }}
+                  onClick={() => handleDelete(participant.id)}
+                />
+              </div>
+            )}
+            style={{ width: '15rem', textAlign: 'center' }}
+          />
+        </DataTable>
       </div>
 
       {/* Preview Modal */}
-      {previewParticipant && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Preview Sertifikat - {previewParticipant.name}
-              </h2>
-              <button
-                onClick={() => setPreviewParticipant(null)}
-                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-              >
-                ✕
-              </button>
+      <Dialog
+        header={previewParticipant ? `Preview Sertifikat - ${previewParticipant.name}` : 'Preview'}
+        visible={!!previewParticipant}
+        style={{ width: '90vw', maxWidth: '1200px' }}
+        onHide={() => setPreviewParticipant(null)}
+        draggable={false}
+        resizable={false}
+        maximizable
+      >
+        {previewParticipant && (
+          <>
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-2 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <Button
+                icon="pi pi-search-minus"
+                onClick={() => setZoom(Math.max(0.25, zoom - 0.25))}
+                severity="secondary"
+                outlined
+                tooltip="Zoom Out"
+                tooltipOptions={{ position: 'top' }}
+              />
+              <span className="px-3 py-1 bg-white rounded border border-gray-200 min-w-[70px] text-center font-semibold text-gray-700 text-sm">
+                {Math.round(zoom * 100)}%
+              </span>
+              <Button
+                icon="pi pi-search-plus"
+                onClick={() => setZoom(Math.min(3, zoom + 0.25))}
+                severity="secondary"
+                outlined
+                tooltip="Zoom In"
+                tooltipOptions={{ position: 'top' }}
+              />
+              <Button
+                label="Reset"
+                onClick={() => setZoom(1)}
+                severity="info"
+                tooltip="Reset Zoom"
+                tooltipOptions={{ position: 'top' }}
+              />
             </div>
-            <div className="border-4 border-gray-200 rounded-lg overflow-hidden">
-              <Stage width={800} height={560} ref={stageRef}>
+
+            <div className="border-4 border-gray-200 rounded-lg overflow-auto max-h-[600px]">
+              <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+                <Stage width={canvasSize.width} height={canvasSize.height} ref={stageRef}>
                 <Layer>
-                  <Rect x={0} y={0} width={800} height={560} fill="#FFFFFF" />
-                  <CertificateBorder />
+                  <Rect x={0} y={0} width={canvasSize.width} height={canvasSize.height} fill="#FFFFFF" />
+                  
+                  {/* Background Image (if uploaded) */}
+                  {backgroundImage && (
+                    <KonvaImage
+                      x={0}
+                      y={0}
+                      width={canvasSize.width}
+                      height={canvasSize.height}
+                      image={backgroundImage}
+                    />
+                  )}
+                  
+                  {/* Border (optional) */}
+                  {showBorder && <CertificateBorder width={canvasSize.width} height={canvasSize.height} />}
                   
                   {/* Header */}
                   <Text
-                    x={200}
+                    x={canvasSize.width / 2 - 200}
                     y={120}
                     text="SERTIFIKAT"
                     fontSize={42}
@@ -356,7 +506,7 @@ const ParticipantList: React.FC = () => {
                     width={400}
                   />
                   <Text
-                    x={150}
+                    x={canvasSize.width / 2 - 250}
                     y={180}
                     text="Diberikan Kepada:"
                     fontSize={20}
@@ -368,26 +518,32 @@ const ParticipantList: React.FC = () => {
                   
                   {/* Participant Data */}
                   <Text
-                    x={300}
+                    x={150}
                     y={250}
                     text={previewParticipant.name}
+                    width={500}
+                    align="center"
                     fontSize={32}
                     fontFamily="Arial"
                     fontStyle="bold"
                     fill="#1A1A1A"
                   />
                   <Text
-                    x={220}
+                    x={canvasSize.width / 2 - 250}
                     y={300}
                     text={previewParticipant.course}
+                    width={500}
+                    align="center"
                     fontSize={24}
                     fontFamily="Arial"
                     fill="#333"
                   />
                   <Text
-                    x={300}
-                    y={450}
+                    x={canvasSize.width / 2 - 150}
+                    y={canvasSize.height - 110}
                     text={previewParticipant.date}
+                    width={300}
+                    align="center"
                     fontSize={18}
                     fontFamily="Arial"
                     fill="#333"
@@ -395,8 +551,8 @@ const ParticipantList: React.FC = () => {
                   
                   {/* Signature */}
                   <Text
-                    x={550}
-                    y={500}
+                    x={canvasSize.width - 250}
+                    y={canvasSize.height - 60}
                     text="Direktur Kursus,"
                     fontSize={14}
                     fontFamily="Arial"
@@ -404,44 +560,20 @@ const ParticipantList: React.FC = () => {
                   />
                 </Layer>
               </Stage>
+              </div>
             </div>
-            <div className="flex gap-3 mt-4">
-              <button
+            <div className="flex mt-4">
+              <Button
+                label="Download Sertifikat Ini"
+                icon="pi pi-download"
+                severity="success"
+                className="w-full"
                 onClick={() => handleDownload(previewParticipant)}
-                className="flex-1 bg-gradient-to-r from-green-500 to-teal-600 text-white font-bold py-3 rounded-lg hover:shadow-lg transition-all"
-              >
-                📥 Download Sertifikat Ini
-              </button>
-              <button
-                onClick={() => setPreviewParticipant(null)}
-                className="flex-1 bg-gray-300 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-400 transition-all"
-              >
-                Tutup
-              </button>
+              />
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
-          <div className="text-3xl font-bold mb-2">{participants.length}</div>
-          <div className="text-blue-100">Total Peserta</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg shadow-lg">
-          <div className="text-3xl font-bold mb-2">
-            {participants.filter((p) => p.status === 'generated').length}
-          </div>
-          <div className="text-green-100">Sertifikat Generated</div>
-        </div>
-        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-lg">
-          <div className="text-3xl font-bold mb-2">
-            {participants.filter((p) => p.status === 'pending').length}
-          </div>
-          <div className="text-yellow-100">Pending</div>
-        </div>
-      </div>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 };
